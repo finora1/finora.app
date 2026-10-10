@@ -67,7 +67,7 @@ label{display:block;font-size:13px;color:var(--mut);margin-bottom:12px;font-weig
 .filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .filters input{grid-column:1/3;margin:0}.filters select{margin:0}
 .tabs{display:flex;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px}
-.tabs button{flex:1;padding:9px;border-radius:10px;font-weight:700;font-size:13px;color:var(--mut)}
+.tabs button{flex:1;padding:9px 4px;border-radius:10px;font-weight:700;font-size:13px;color:var(--mut)}
 .tabs button.on{background:var(--em);color:#04120d}
 .empty{text-align:center;padding:30px 12px;color:var(--mut)}
 .empty b{display:block;color:var(--tx);margin-bottom:4px;font-size:16px}
@@ -92,6 +92,7 @@ label{display:block;font-size:13px;color:var(--mut);margin-bottom:12px;font-weig
 .auth .logo{font-size:22px;margin-bottom:6px}
 .auth p.mut{margin-bottom:26px}
 .link{color:var(--em2);font-size:13px;font-weight:600;margin-top:12px;display:block;text-align:center;width:100%}
+.grid3+.alert{margin-top:12px}
 svg.ch{width:100%;height:auto;display:block}
 @keyframes f{from{opacity:0}}@keyframes u{from{transform:translateY(40px)}}@keyframes s{to{background-position:-200% 0}}
 @media(min-width:900px){
@@ -134,7 +135,7 @@ const fmt=n=>"₹"+(+n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
 const iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
 const today=()=>iso(new Date());
 const addD=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return d};
-const S={u:null,tx:[],bud:{},goals:[],rem:[],view:"dash",sub:"goals",q:"",ft:"all",fc:"all",per:"monthly",ready:0,unsub:[]};
+const S={u:null,tx:[],bud:{},goals:[],rem:[],loans:[],lf:"all",view:"dash",sub:"goals",q:"",ft:"all",fc:"all",per:"monthly",ready:0,unsub:[]};
 let auth,db,ip,mode="login";
 const CONFIGURED=!FIREBASE_CONFIG.apiKey.startsWith("YOUR_");
 if(CONFIGURED){firebase.initializeApp(FIREBASE_CONFIG);auth=firebase.auth();db=firebase.firestore();db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}
@@ -161,10 +162,10 @@ function authView(){
 }
 function listen(){
  S.ready=0;
- ["transactions","budgets","goals","reminders"].forEach((n,i)=>S.unsub.push(ref(n).onSnapshot(s=>{
+ ["transactions","budgets","goals","reminders","loans"].forEach((n,i)=>S.unsub.push(ref(n).onSnapshot(s=>{
   const a=s.docs.map(d=>({id:d.id,...d.data()}));
-  if(n=="transactions")S.tx=a;else if(n=="budgets"){S.bud={};a.forEach(b=>S.bud[b.id]=+b.limit)}else if(n=="goals")S.goals=a;else S.rem=a;
-  S.ready|=1<<i;render()},e=>{S.ready=15;toast("Sync failed: "+e.message,1);render()})))
+  if(n=="transactions")S.tx=a;else if(n=="budgets"){S.bud={};a.forEach(b=>S.bud[b.id]=+b.limit)}else if(n=="goals")S.goals=a;else if(n=="reminders")S.rem=a;else S.loans=a;
+  S.ready|=1<<i;render()},e=>{S.ready=31;toast("Sync failed: "+e.message,1);render()})))
 }
 if(CONFIGURED)auth.onAuthStateChanged(u=>{S.unsub.forEach(f=>f());S.unsub=[];S.u=u;if(u){shell();listen()}else{S.tx=[];S.goals=[];S.rem=[];S.bud={};authView()}});else authView();
 
@@ -176,7 +177,7 @@ function render(){
  if(!S.u||!$("#main"))return;
  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v==S.view));
  const m=$("#main");
- if(S.ready!==15){m.innerHTML=`<div class="top"><div class="logo">FINORA</div></div><div class="sk" style="height:150px"></div><div class="sk"></div><div class="sk"></div>`;return}
+ if(S.ready!==31){m.innerHTML=`<div class="top"><div class="logo">FINORA</div></div><div class="sk" style="height:150px"></div><div class="sk"></div><div class="sk"></div>`;return}
  const fy=document.activeElement&&document.activeElement.id=="q";
  m.innerHTML=({dash,tx:txv,rep,goals:gv,set})[S.view]();
  if(fy){const q=$("#q");q.focus();q.setSelectionRange(99,99)}
@@ -198,6 +199,8 @@ function txRow(t,acts){
 }
 
 /* ---------- Views ---------- */
+function lnRow(){const o=S.loans.map(l=>({t:l.type,r:Math.max(0,l.amount-(l.paid||0))})).filter(x=>x.r>0);if(!o.length)return"";const g=t=>o.filter(x=>x.t==t).reduce((s,x)=>s+x.r,0);
+ return`<div class="grid3" style="grid-template-columns:1fr 1fr;margin-top:10px"><div class="card" data-act="goloan" style="cursor:pointer"><span class="mut">To receive</span><b class="pos">${fmt(g("lent"))}</b></div><div class="card" data-act="goloan" style="cursor:pointer"><span class="mut">To pay</span><b class="neg">${fmt(g("borrowed"))}</b></div></div>`}
 function dash(){
  const all=S.tx,mo=all.filter(x=>x.date.startsWith(ym()));
  const bal=sum(all,"income")-sum(all,"expense"),inc=sum(mo,"income"),exp=sum(mo,"expense"),sv=inc-exp;
@@ -208,7 +211,7 @@ function dash(){
  <div class="card hero"><div class="mut">Total balance</div><div class="big ${bal<0?"neg":""}">${fmt(bal)}</div>
  <div class="row"><button class="btn pr" data-act="add" data-t="expense">− Add expense</button><button class="btn" data-act="add" data-t="income">+ Add income</button></div></div>
  <div class="grid3"><div class="card"><span class="mut">Income</span><b class="pos">${fmt(inc)}</b></div><div class="card"><span class="mut">Expenses</span><b>${fmt(exp)}</b></div><div class="card"><span class="mut">Savings</span><b class="${sv<0?"neg":"pos"}">${fmt(sv)}</b></div></div>
- ${al}${du}
+ ${lnRow()}${al}${du}
  <h2>Spending this month</h2><div class="card">${catBars(spentBy(mo),"Add an expense to see where your money goes.")}</div>
  <h2>Recent transactions <button class="btn sm" data-act="nav" data-v="tx">See all</button></h2>
  <div class="card">${all.length?byDate(all).slice(0,5).map(t=>txRow(t)).join(""):`<div class="empty"><b>No transactions yet</b>Add your first income or expense above.</div>`}</div>`
@@ -244,7 +247,7 @@ function rep(){
  <div class="card"><b>Highest spending</b>${top.length?top.slice(0,3).map(([c,v],i)=>`<div class="tx"><div class="av">${i+1}</div><div class="m"><b>${c}</b></div><div class="a">${fmt(v)}</div></div>`).join(""):`<div class="empty">Top categories appear here.</div>`}</div>`
 }
 function gv(){
- const tabs=`<div class="tabs">${[["goals","Goals"],["bud","Budgets"],["rem","Reminders"]].map(t=>`<button class="${S.sub==t[0]?"on":""}" data-act="sub" data-s="${t[0]}">${t[1]}</button>`).join("")}</div>`;
+ const tabs=`<div class="tabs">${[["goals","Goals"],["bud","Budgets"],["rem","Reminders"],["loan","Loans"]].map(t=>`<button class="${S.sub==t[0]?"on":""}" data-act="sub" data-s="${t[0]}">${t[1]}</button>`).join("")}</div>`;
  let body="",btn="";
  if(S.sub=="goals"){btn=`<button class="btn pr sm" data-act="ag">+ New goal</button>`;
   body=S.goals.length?S.goals.map(g=>{const p=Math.min(100,g.target>0?g.saved/g.target*100:0),r=Math.max(0,g.target-g.saved);return`<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(g.name)}</b><span class="tag ${p>=100?"g":""}">${p>=100?"Reached":Math.round(p)+"%"}</span></div><div class="bar" style="margin:12px 0"><i style="width:${p}%"></i></div>
@@ -261,6 +264,19 @@ function gv(){
   body=l.length?l.map(r=>{const od=r.status!="paid"&&r.due<today();return`<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(r.title)}</b><span class="tag ${r.status=="paid"?"g":od?"r":""}">${r.status=="paid"?"Paid":od?"Overdue":"Pending"}</span></div>
   <div class="row" style="justify-content:space-between;margin:6px 0 12px"><span class="mut">Due ${r.due}</span><b>${fmt(r.amount)}</b></div>
   <div class="row"><button class="btn sm" data-act="rp" data-id="${r.id}">${r.status=="paid"?"Mark pending":"Mark paid"}</button><button class="btn sm" data-act="er" data-id="${r.id}">Edit</button><button class="btn sm neg" data-act="dr" data-id="${r.id}">Delete</button></div></div>`}).join(""):`<div class="card empty"><b>No reminders</b>Add bills so you never miss a due date.</div>`}
+
+ if(S.sub=="loan"){btn=`<button class="btn pr sm" data-act="al">+ Add</button>`;
+  const rm=l=>Math.max(0,l.amount-(l.paid||0)),op=S.loans.filter(l=>rm(l)>0),sm=t=>op.filter(l=>l.type==t).reduce((s,l)=>s+rm(l),0);
+  const L=S.loans.filter(l=>S.lf=="all"||l.type==S.lf).sort((a,b)=>(rm(a)==0)-(rm(b)==0)||(a.due||"9999").localeCompare(b.due||"9999"));
+  body=`<div class="grid3" style="grid-template-columns:1fr 1fr;margin-bottom:14px"><div class="card"><span class="mut">To receive</span><b class="pos" style="font-size:20px">${fmt(sm("lent"))}</b></div><div class="card"><span class="mut">To pay</span><b class="neg" style="font-size:20px">${fmt(sm("borrowed"))}</b></div></div>
+  <div class="tabs">${[["all","All"],["lent","To receive"],["borrowed","To pay"]].map(t=>`<button class="${S.lf==t[0]?"on":""}" data-act="lf" data-l="${t[0]}">${t[1]}</button>`).join("")}</div>`+
+  (L.length?L.map(l=>{const r=rm(l),ln=l.type=="lent",od=r>0&&l.due&&l.due<today(),p=Math.min(100,l.amount>0?(l.paid||0)/l.amount*100:0);
+   return`<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(l.person)}</b><span class="tag ${r==0?"g":od?"r":""}">${r==0?"Settled":od?"Overdue":ln?"Owes you":"You owe"}</span></div>
+   <div style="margin:6px 0 10px"><span class="${ln?"pos":"neg"}" style="font-size:24px;font-weight:800">${fmt(r)}</span> <span class="mut" style="font-weight:600">${r==0?"settled":ln?"to receive":"to pay"}</span></div>
+   <div class="bar" style="margin-bottom:10px"><i style="width:${p}%"></i></div>
+   <div class="row" style="justify-content:space-between"><span class="mut">Total ${fmt(l.amount)}</span><span class="mut">${ln?"Received":"Paid"} ${fmt(l.paid||0)}</span></div>
+   <div class="mut" style="margin-top:6px">${new Date(l.date+"T00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}${l.due?" · Due "+l.due:""}${l.notes?" · "+esc(l.notes):""}</div>
+   <div class="row" style="margin-top:12px">${r>0?`<button class="btn sm" data-act="lp" data-id="${l.id}">${ln?"Record received":"Record paid"}</button>`:""}<button class="btn sm" data-act="el" data-id="${l.id}">Edit</button><button class="btn sm neg" data-act="dl" data-id="${l.id}">Delete</button></div></div>`}).join(""):`<div class="card empty"><b>${S.loans.length?"No entries here":"No loans yet"}</b>Track money you lent or borrowed, and who still owes what.</div>`)}
  return head("Goals",btn)+tabs+body
 }
 function set(){
@@ -304,6 +320,21 @@ function budForm(c){sheet(c?"Edit budget":"Set budget",`<label>Category<select n
 function remForm(r={}){sheet(r.id?"Edit reminder":"New reminder",`<label>Bill or payment<input name="title" maxlength="50" value="${esc(r.title||"")}" placeholder="e.g. Electricity bill"></label><label>Amount (₹)<input name="amount" type="number" step="0.01" min="0" inputmode="decimal" value="${r.amount||""}"></label><label>Due date<input name="due" type="date" value="${r.due||today()}"></label>`,
  async d=>{if(!d.title.trim())throw Error("Enter a name for this bill.");if(!d.due)throw Error("Pick a due date.");const doc={title:d.title.trim(),amount:num(d.amount,"Amount"),due:d.due};
   r.id?await ref("reminders").doc(r.id).update(doc):await ref("reminders").add({...doc,status:"pending",createdAt:TS()});toast("Reminder saved")})}
+function loanForm(l={}){const t=l.type||"lent";
+ sheet(l.id?"Edit entry":"New entry",`<div class="seg"><label><input type="radio" name="type" value="lent" ${t=="lent"?"checked":""}><span>I lent</span></label><label><input type="radio" name="type" value="borrowed" ${t=="borrowed"?"checked":""}><span>I borrowed</span></label></div>
+ <label>Person<input name="person" maxlength="40" value="${esc(l.person||"")}" placeholder="Name"></label>
+ <label>Amount (₹)<input name="amount" type="number" step="0.01" min="0" inputmode="decimal" value="${l.amount||""}"></label>
+ <label>Date<input name="date" type="date" value="${l.date||today()}"></label>
+ <label>Due date (optional)<input name="due" type="date" value="${l.due||""}"></label>
+ <label>Notes<input name="notes" maxlength="120" value="${esc(l.notes||"")}" placeholder="Optional"></label>`,
+ async d=>{if(!d.person.trim())throw Error("Enter the person's name.");const a=num(d.amount,"Amount");if(!d.date)throw Error("Pick a date.");
+  if(l.id&&a<(l.paid||0))throw Error("Amount can't be less than already settled ("+fmt(l.paid)+").");
+  if(d.due&&d.due<d.date)throw Error("Due date can't be before the entry date.");
+  const doc={type:d.type,person:d.person.trim(),amount:a,date:d.date,due:d.due||"",notes:d.notes.trim()};
+  l.id?await ref("loans").doc(l.id).update(doc):await ref("loans").add({...doc,paid:0,createdAt:TS()});toast("Saved")})}
+function loanPay(l){const r=Math.max(0,l.amount-(l.paid||0));
+ sheet((l.type=="lent"?"Received from ":"Paid to ")+esc(l.person),`<p class="mut" style="margin-bottom:12px">Remaining: ${fmt(r)}</p><label>Amount (₹)<input name="amount" type="number" step="0.01" min="0" inputmode="decimal" value="${r}"></label>`,
+ async d=>{const a=num(d.amount,"Amount");if(a>r+.001)throw Error("That's more than the remaining "+fmt(r)+".");await ref("loans").doc(l.id).update({paid:+((l.paid||0)+a).toFixed(2)});toast(r-a<=.001?"Settled":"Payment recorded")})}
 function fundForm(g){sheet("Add to "+esc(g.name),`<label>Amount saved (₹)<input name="amount" type="number" step="0.01" min="0" inputmode="decimal"></label>`,async d=>{await ref("goals").doc(g.id).update({saved:+(g.saved+num(d.amount,"Amount")).toFixed(2)});toast("Savings added")})}
 const del=async(col,id,msg)=>{if(!confirm(msg))return;try{await ref(col).doc(id).delete();toast("Deleted")}catch(e){toast(e.message,1)}};
 
@@ -327,6 +358,9 @@ document.addEventListener("click",async e=>{
   case"rp":{const r=f(S.rem);await ref("reminders").doc(id).update({status:r.status=="paid"?"pending":"paid"});break}
   case"inst":ip.prompt();await ip.userChoice;ip=null;render();break;
   case"theme":applyTheme(b.dataset.t);render();break;
+  case"al":loanForm();break;case"el":loanForm(f(S.loans));break;case"lp":loanPay(f(S.loans));break;
+  case"dl":del("loans",id,"Delete this entry?");break;case"lf":S.lf=b.dataset.l;render();break;
+  case"goloan":S.view="goals";S.sub="loan";render();scrollTo(0,0);break;
   case"out":await auth.signOut();break;
  }}catch(x){toast(em(x),1)}
 });
