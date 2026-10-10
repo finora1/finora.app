@@ -1,4 +1,4 @@
-const V="finora-v3";
+const V="finora-v4";
 const SHELL=["./","manifest.webmanifest","icon-192.png","icon-512.png"];
 const LIVE=["firestore.googleapis.com","identitytoolkit.googleapis.com","securetoken.googleapis.com","firebaseinstallations.googleapis.com"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(V).then(c=>Promise.allSettled(SHELL.map(u=>c.add(u)))).then(()=>self.skipWaiting()))});
